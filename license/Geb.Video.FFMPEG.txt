@@ -1,0 +1,14 @@
+Geb.Video.FFMPEG is a simple .net wrapper of ffmpeg, it is modified from AForge.Video.FFMPEG
+url: https://github.com/xiaotie/GebVideoFFMPEG
+Email: xiaotie@geblab.com
+Geblab: http://www.geblab.com
+
+License agreement
+
+The framework is provided under LGPL v.3 license, which exact definition
+may be found in lgpl-3.0.txt file provided with the framework or on the
+next web page: http://www.gnu.org/licenses/lgpl.html
+
+Copyright Geb.Video.FFMPEG, 2012-
+xiaotie@geblab.com
+
