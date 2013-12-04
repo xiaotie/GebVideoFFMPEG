@@ -217,11 +217,14 @@ namespace Geb { namespace Video { namespace FFMPEG
 		int m_width;
 		int m_height;
 		int	m_frameRate;
+		byte* m_audioBuff;
 		String^ m_codecName;
 		Int64 m_framesCount;
 
 	private:
 		ImageRgb24^ DecodeVideoFrame( );
+
+		bool DecodeAudioPacket(void* packet);
 
 		// Checks if video file was opened
 		void CheckIfVideoFileIsOpen( )
