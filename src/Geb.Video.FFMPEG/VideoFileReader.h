@@ -16,7 +16,8 @@ using namespace Geb::Image;
 
 namespace Geb { namespace Video { namespace FFMPEG
 {
-	ref struct ReaderPrivateData;
+	ref struct VideoContext;
+	ref struct AudioContext;
 
 	/// <summary>
 	/// Class for reading video files utilizing FFmpeg library.
@@ -143,7 +144,7 @@ namespace Geb { namespace Video { namespace FFMPEG
 		{
 			bool get ( )
 			{
-				return ( data != nullptr );
+				return ( videoContext != nullptr );
 			}
 		}
 
@@ -229,7 +230,7 @@ namespace Geb { namespace Video { namespace FFMPEG
 		// Checks if video file was opened
 		void CheckIfVideoFileIsOpen( )
 		{
-			if ( data == nullptr )
+			if ( videoContext == nullptr )
 			{
 				throw gcnew System::IO::IOException( "Video file is not open, so can not access its properties." );
 			}
@@ -246,7 +247,8 @@ namespace Geb { namespace Video { namespace FFMPEG
 
 	private:
 		// private data of the class
-		ReaderPrivateData^ data;
+		VideoContext^ videoContext;
+		AudioContext^ audioContext;
         bool disposed;
 	};
 

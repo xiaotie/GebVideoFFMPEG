@@ -14,7 +14,7 @@ namespace Geb.Video.FFMPEG.Demo
     {
         private VideoFileReader _reader;
         private VideoFileWriter _writer;
-
+        
         public FrmMain()
         {
             InitializeComponent();

@@ -39,10 +39,6 @@
     <Reference Include="Geb.Utils">
       <HintPath>..\lib\Geb.Utils.dll</HintPath>
     </Reference>
-    <Reference Include="Geb.Video.FFMPEG, Version=1.1.0.0, Culture=neutral, processorArchitecture=x86">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\lib\Geb.Video.FFMPEG.dll</HintPath>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Data" />
     <Reference Include="System.Deployment" />
@@ -104,6 +100,12 @@
     <Content Include="swscale-2.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Geb.Video.FFMPEG\Geb.Video.FFMPEG.vcxproj">
+      <Project>{ff31dd24-127d-4eb1-929c-f5738147e886}</Project>
+      <Name>Geb.Video.FFMPEG</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
