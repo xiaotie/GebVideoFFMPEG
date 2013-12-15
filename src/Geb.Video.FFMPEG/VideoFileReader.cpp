@@ -112,6 +112,7 @@ public:
 
 	int videoStreamIndex;
 	int audioStreamIndex;
+	int minFrameCacheCount;
 
 	void ClearQueue()
 	{
@@ -142,6 +143,12 @@ public:
 	libffmpeg::AVPacket* NextVideoPacket()
 	{
 		IntPtr p = IntPtr::Zero;
+
+		while(this->VideoPackets->Count <= this->minFrameCacheCount)
+		{
+			if(this->ReadNextPacket() == false) break;
+		}
+
 		if(this->VideoPackets->Count > 0)
 		{
 			p = this->VideoPackets->Dequeue();
@@ -218,6 +225,7 @@ public:
 		FormatContext = NULL;
 		VideoPackets = gcnew Queue<IntPtr>();
 		AudioPackets = gcnew Queue<IntPtr>();
+		minFrameCacheCount = 30;
 	}
 };
 
@@ -276,7 +284,6 @@ void VideoFileReader::Open( String^ fileName )
 		{
 			throw gcnew System::IO::IOException( "Cannot open the video file." );
 		}
-
 		// retrieve stream information
 		if ( libffmpeg::av_find_stream_info( cxt->FormatContext ) < 0 )
 		{
@@ -320,15 +327,18 @@ void VideoFileReader::Open( String^ fileName )
 			throw gcnew Exception( "Cannot open video codec." );
 		}
 
-		libffmpeg::AVCodec* audioCodec = libffmpeg::avcodec_find_decoder(audioContext->AudioCodecContext->codec_id);
-		if( audioCodec == NULL )
+		if(audioContext->AudioCodecContext != NULL)
 		{
-			throw gcnew Exception( "Cannot find codec to decode the audio stream." );
-		}
+			libffmpeg::AVCodec* audioCodec = libffmpeg::avcodec_find_decoder(audioContext->AudioCodecContext->codec_id);
+			if( audioCodec == NULL )
+			{
+				throw gcnew Exception( "Cannot find codec to decode the audio stream." );
+			}
 
-		if ( libffmpeg::avcodec_open( audioContext->AudioCodecContext, audioCodec ) < 0 )
-		{
-			throw gcnew Exception( "Cannot open audio codec." );
+			if ( libffmpeg::avcodec_open( audioContext->AudioCodecContext, audioCodec ) < 0 )
+			{
+				throw gcnew Exception( "Cannot open audio codec." );
+			}
 		}
 
 		// allocate video frame
@@ -369,9 +379,9 @@ void VideoFileReader::Close(  )
 {
 	if ( audioContext != nullptr )
 	{
-		if ( audioContext->AudioStream != NULL )
+		if ( audioContext->AudioFrame != NULL )
 		{
-			libffmpeg::av_free( audioContext->AudioStream );
+			delete audioContext->AudioFrame;
 		}
 
 		if ( audioContext->AudioCodecContext != NULL )
