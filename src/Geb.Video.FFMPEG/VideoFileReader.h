@@ -9,15 +9,16 @@
 #pragma once
 
 using namespace System;
+using namespace System::Collections::Generic;
 using namespace System::Drawing;
 using namespace System::Drawing::Imaging;
-
 using namespace Geb::Image;
 
 namespace Geb { namespace Video { namespace FFMPEG
 {
 	ref struct VideoContext;
 	ref struct AudioContext;
+	ref struct VideoFileContext;
 
 	/// <summary>
 	/// Class for reading video files utilizing FFmpeg library.
@@ -148,6 +149,22 @@ namespace Geb { namespace Video { namespace FFMPEG
 			}
 		}
 
+		property VideoContext^ VideoCxt
+		{
+			VideoContext^ get ( )
+			{
+				return ( videoContext);
+			}
+		}
+
+		property AudioContext^ AudioCxt
+		{
+			AudioContext^ get ( )
+			{
+				return ( audioContext);
+			}
+		}
+
     protected:
 
         /// <summary>
@@ -200,6 +217,8 @@ namespace Geb { namespace Video { namespace FFMPEG
         /// 
 		ImageRgb24^ ReadVideoFrame( );
 
+		array<Byte>^ ReadAudioFrame( bool onlyCurrentVideoFrame );
+
 		int Seek(long long frameIndex,  Boolean seekKeyFrame);
 
 		int Seek(long long frameIndex)
@@ -225,7 +244,7 @@ namespace Geb { namespace Video { namespace FFMPEG
 	private:
 		ImageRgb24^ DecodeVideoFrame( );
 
-		bool DecodeAudioPacket(void* packet);
+		array<Byte>^ DecodeAudioFrame( int length );
 
 		// Checks if video file was opened
 		void CheckIfVideoFileIsOpen( )
@@ -245,10 +264,11 @@ namespace Geb { namespace Video { namespace FFMPEG
             }
         }
 
-	private:
 		// private data of the class
 		VideoContext^ videoContext;
 		AudioContext^ audioContext;
+		VideoFileContext^ cxt;
+	private:
         bool disposed;
 	};
 
