@@ -38,6 +38,8 @@ public:
 	libffmpeg::AVFrame*				VideoFrame;
 	struct libffmpeg::SwsContext*	ConvertContext;
 	int BytesRemaining;
+	long long pts;
+	long long dts;
 
 	VideoContext( )
 	{
@@ -113,6 +115,10 @@ public:
 	int videoStreamIndex;
 	int audioStreamIndex;
 	int minFrameCacheCount;
+	long long videoPts;
+	long long videoDts;
+	long long audioPts;
+	long long audioDts;
 
 	void ClearQueue()
 	{
@@ -131,6 +137,11 @@ public:
 			libffmpeg::AVPacket* packet = (libffmpeg::AVPacket*)(void*)p;
 			ClearPacket(packet);
 		}
+
+		videoPts = -1;
+		audioPts = -1;
+		videoDts = -1;
+		audioDts = -1;
 	}
 
 	void ClearPacket(libffmpeg::AVPacket* packet)
@@ -138,6 +149,14 @@ public:
 		if(packet == NULL) return;
 		if(packet->data != NULL) libffmpeg::av_free_packet( packet );
 		delete packet;
+	}
+
+	void EnsureNextVideoPacket()
+	{
+		while(this->VideoPackets->Count < 1)
+		{
+			if( ReadNextPacket() == false) break;
+		}
 	}
 
 	libffmpeg::AVPacket* NextVideoPacket()
@@ -165,8 +184,15 @@ public:
 			}
 		}
 		
-		if(p == IntPtr::Zero) return NULL;
-		else return (libffmpeg::AVPacket*)(void*)p;
+		if(p == IntPtr::Zero)
+		{
+			return NULL;
+		}
+		else
+		{
+			libffmpeg::AVPacket* pkt = (libffmpeg::AVPacket*)(void*)p;
+			return pkt;
+		}
 	}
 
 	libffmpeg::AVPacket* NextAudioPacket(bool onlyReadCacheQuque)
@@ -188,8 +214,15 @@ public:
 			}
 		}
 		
-		if(p == IntPtr::Zero) return NULL;
-		else return (libffmpeg::AVPacket*)(void*)p;
+		if(p == IntPtr::Zero)
+		{
+			return NULL;
+		}
+		else
+		{
+			libffmpeg::AVPacket* pkt = (libffmpeg::AVPacket*)(void*)p;
+			return pkt;
+		}
 	}
 
 	bool ReadNextPacket()
@@ -202,10 +235,14 @@ public:
 			if(packet->stream_index == videoStreamIndex)
 			{
 				VideoPackets->Enqueue((IntPtr)packet);
+				videoPts = packet->pts;
+				videoDts = packet->dts;
 			}
 			else if(packet->stream_index == audioStreamIndex)
 			{
 				AudioPackets->Enqueue((IntPtr)packet);
+				audioPts = packet->pts;
+				audioDts = packet->dts;
 			}
 			else
 			{
@@ -225,7 +262,7 @@ public:
 		FormatContext = NULL;
 		VideoPackets = gcnew Queue<IntPtr>();
 		AudioPackets = gcnew Queue<IntPtr>();
-		minFrameCacheCount = 30;
+		minFrameCacheCount = 0;
 	}
 };
 
@@ -354,12 +391,26 @@ void VideoFileReader::Open( String^ fileName )
 			throw gcnew Exception( "Cannot initialize frames conversion context." );
 		}
 
+		libffmpeg::AVStream* vs = videoContext->VideoStream;
+
 		// get some properties of the video file
 		m_width  = videoContext->VideoCodecContext->width;
 		m_height = videoContext->VideoCodecContext->height;
-		m_frameRate = videoContext->VideoStream->r_frame_rate.num / videoContext->VideoStream->r_frame_rate.den;
 		m_codecName = gcnew String( videoContext->VideoCodecContext->codec->name );
-		m_framesCount = videoContext->VideoStream->nb_frames;
+
+		// 这里 AForge.Net 的代码有问题，无法读取 flv,f4v 的 frameCount
+		if (vs->r_frame_rate.den > 0 && vs->r_frame_rate.num > 0)
+		{
+			m_frameRate = vs->r_frame_rate.num / vs->r_frame_rate.den;
+		}
+		else
+		{
+			m_frameRate = videoContext->VideoCodecContext->time_base.num / videoContext->VideoCodecContext->time_base.den;
+		}
+
+		double duration = (double)(cxt->FormatContext->duration / (double)AV_TIME_BASE);
+        if (duration < 0) duration = 0;
+		m_framesCount = m_frameRate * duration;
 		success = true;
 	}
 	finally
@@ -495,6 +546,7 @@ array<Byte>^ VideoFileReader::ReadAudioFrame(  bool onlyCurrentVideoFrame  )
 		audioContext->BytesRemaining = packet->size;
 		while (audioContext->BytesRemaining > 0 )
 		{
+			frameFinished = 192000;
 			bytesDecoded = libffmpeg::avcodec_decode_audio3( audioContext->AudioCodecContext, audioContext->AudioFrame, &frameFinished, packet );
 
 			if ( bytesDecoded < 0 )
@@ -513,7 +565,7 @@ array<Byte>^ VideoFileReader::ReadAudioFrame(  bool onlyCurrentVideoFrame  )
 	return nullptr;
 }
 
-int VideoFileReader::Seek(long long frameIndex, Boolean seekKeyFrame)
+long long VideoFileReader::Seek(long long frameIndex, Boolean seekKeyFrame)
 {
 	if(videoContext == nullptr || videoContext->VideoCodecContext == NULL) return -1;
 	libffmpeg::AVCodecContext* pCodecCtx = videoContext->VideoCodecContext;
@@ -523,7 +575,8 @@ int VideoFileReader::Seek(long long frameIndex, Boolean seekKeyFrame)
 	int val = libffmpeg::av_seek_frame(cxt->FormatContext, -1, seekTarget, seekKeyFrame ? AVSEEK_FLAG_FRAME : AVSEEK_FLAG_ANY);
 	libffmpeg::	avcodec_flush_buffers(pCodecCtx);
 	cxt->ClearQueue();
-	return val;
+	cxt->EnsureNextVideoPacket();
+	return cxt->videoPts;
 }
 
 // Decodes video frame into managed Bitmap

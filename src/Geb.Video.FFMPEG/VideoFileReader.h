@@ -219,9 +219,9 @@ namespace Geb { namespace Video { namespace FFMPEG
 
 		array<Byte>^ ReadAudioFrame( bool onlyCurrentVideoFrame );
 
-		int Seek(long long frameIndex,  Boolean seekKeyFrame);
+		long long Seek(long long frameIndex,  Boolean seekKeyFrame);
 
-		int Seek(long long frameIndex)
+		long long Seek(long long frameIndex)
 		{
 			return Seek(frameIndex, true);
 		}
