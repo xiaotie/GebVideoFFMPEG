@@ -405,7 +405,7 @@ void VideoFileReader::Open( String^ fileName )
 		}
 		else
 		{
-			m_frameRate = videoContext->VideoCodecContext->time_base.num / videoContext->VideoCodecContext->time_base.den;
+			m_frameRate = videoContext->VideoCodecContext->time_base.den / videoContext->VideoCodecContext->time_base.num;
 		}
 
 		double duration = (double)(cxt->FormatContext->duration / (double)AV_TIME_BASE);
