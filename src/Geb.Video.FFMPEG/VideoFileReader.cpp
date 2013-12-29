@@ -599,7 +599,7 @@ array<Byte>^ VideoFileReader::ReadAudioFrame(  bool onlyCurrentVideoFrame  )
 	return nullptr;
 }
 
-long long VideoFileReader::Seek(long long frameIndex, Boolean seekKeyFrame)
+double VideoFileReader::Seek(long long frameIndex, Boolean seekKeyFrame)
 {
 	if(videoContext == nullptr || videoContext->VideoCodecContext == NULL) return -1;
 	libffmpeg::AVCodecContext* pCodecCtx = videoContext->VideoCodecContext;
@@ -621,7 +621,7 @@ long long VideoFileReader::Seek(long long frameIndex, Boolean seekKeyFrame)
 	libffmpeg::	avcodec_flush_buffers(pCodecCtx);
 	cxt->ClearQueue();
 	cxt->EnsureNextVideoPacket();
-	return cxt->videoPts;
+	return videoContext->CalcTime(cxt->videoPts);
 }
 
 // Decodes video frame into managed Bitmap
