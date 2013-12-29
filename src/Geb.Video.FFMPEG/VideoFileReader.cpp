@@ -599,24 +599,12 @@ array<Byte>^ VideoFileReader::ReadAudioFrame(  bool onlyCurrentVideoFrame  )
 	return nullptr;
 }
 
-double VideoFileReader::Seek(long long frameIndex, Boolean seekKeyFrame)
+double VideoFileReader::Seek(double time, Boolean seekKeyFrame)
 {
 	if(videoContext == nullptr || videoContext->VideoCodecContext == NULL) return -1;
 	libffmpeg::AVCodecContext* pCodecCtx = videoContext->VideoCodecContext;
 	libffmpeg::AVStream* vs = videoContext->VideoStream;
-	if(frameIndex < 0 || frameIndex >= this->FrameCount) return -1;
-
-	long long timeBase = 0;
-	if(vs->r_frame_rate.den > 0 && vs->r_frame_rate.num > 0)
-	{
-		timeBase = (long long(vs->r_frame_rate.den) * AV_TIME_BASE) / long long(vs->r_frame_rate.num);
-	}
-	else
-	{
-		timeBase = (long long(pCodecCtx->time_base.num) * AV_TIME_BASE) / long long(pCodecCtx->time_base.den);
-	}
-
-	long long seekTarget = long long(frameIndex) * timeBase;
+	long long seekTarget = time * AV_TIME_BASE;
 	int val = libffmpeg::av_seek_frame(cxt->FormatContext, -1, seekTarget, seekKeyFrame ? AVSEEK_FLAG_FRAME : AVSEEK_FLAG_ANY);
 	libffmpeg::	avcodec_flush_buffers(pCodecCtx);
 	cxt->ClearQueue();

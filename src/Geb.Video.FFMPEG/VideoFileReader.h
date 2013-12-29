@@ -235,11 +235,11 @@ namespace Geb { namespace Video { namespace FFMPEG
 
 		array<Byte>^ ReadAudioFrame( bool onlyCurrentVideoFrame );
 
-		double Seek(long long frameIndex,  Boolean seekKeyFrame);
+		double Seek(double time,  Boolean seekKeyFrame);
 
-		double Seek(long long frameIndex)
+		double Seek(double time)
 		{
-			return Seek(frameIndex, true);
+			return Seek(time, true);
 		}
 
         /// <summary>
