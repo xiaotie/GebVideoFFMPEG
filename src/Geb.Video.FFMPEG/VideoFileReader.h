@@ -165,6 +165,22 @@ namespace Geb { namespace Video { namespace FFMPEG
 			}
 		}
 
+		property double CurrentVideoTime
+		{
+			double get ( )
+			{
+				return ( m_videoTime);
+			}
+		}
+
+		property double CurrentAudioTime
+		{
+			double get ( )
+			{
+				return ( m_audioTime);
+			}
+		}
+
     protected:
 
         /// <summary>
@@ -240,6 +256,8 @@ namespace Geb { namespace Video { namespace FFMPEG
 		byte* m_audioBuff;
 		String^ m_codecName;
 		Int64 m_framesCount;
+		double m_videoTime;
+		double m_audioTime;
 
 	private:
 		ImageRgb24^ DecodeVideoFrame( );

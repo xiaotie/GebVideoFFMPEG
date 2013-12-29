@@ -41,6 +41,23 @@ public:
 	long long pts;
 	long long dts;
 
+	
+	double CalcTime(long long pts)
+	{
+		//return pts;
+
+		libffmpeg::AVStream* vs = VideoStream;
+		libffmpeg::AVCodecContext* pCodecCtx = VideoCodecContext;
+		if (vs->r_frame_rate.den > 0 && vs->r_frame_rate.num > 0)
+		{
+			return pts * vs->time_base.num / (double)(vs->time_base.den);
+		}
+		else
+		{
+			return pts * pCodecCtx->time_base.num / (double)(pCodecCtx->time_base.den);
+		}
+	}
+
 	VideoContext( )
 	{
 		VideoStream       = NULL;
@@ -100,6 +117,20 @@ public:
                     default:
                         throw gcnew Exception("Unknown sample size.");
                 }
+		}
+	}
+
+	double CalcTime(long long pts)
+	{
+		//libffmpeg::AVStream* vs = AudioStream;
+		libffmpeg::AVStream* vs = AudioStream;
+		if (vs->time_base.den > 0 && vs->time_base.num > 0)
+		{
+			return pts * vs->time_base.num / (double)(vs->time_base.den);
+		}
+		else
+		{
+			return pts / (double)SampleRate;
 		}
 	}
 };
@@ -300,7 +331,8 @@ void VideoFileReader::Open( String^ fileName )
 
 	videoContext = gcnew VideoContext( );
 	audioContext = gcnew AudioContext();
-
+	m_videoTime = 0;
+	m_audioTime = 0;
 	cxt = gcnew VideoFileContext();
 
 	bool success = false;
@@ -496,6 +528,7 @@ ImageRgb24^ VideoFileReader::ReadVideoFrame(  )
 		cxt->ClearPacket(packet);
 		packet = cxt->NextVideoPacket();
 		if(packet == NULL) break;
+		m_videoTime = videoContext->CalcTime(packet->dts);
 
 		// ½âÂë packet
 		videoContext->BytesRemaining = packet->size;
@@ -541,6 +574,7 @@ array<Byte>^ VideoFileReader::ReadAudioFrame(  bool onlyCurrentVideoFrame  )
 		cxt->ClearPacket(packet);
 		packet = cxt->NextAudioPacket(onlyCurrentVideoFrame);
 		if(packet == NULL) break;
+		m_audioTime = audioContext->CalcTime(packet->dts);
 
 		// ½âÂë packet
 		audioContext->BytesRemaining = packet->size;
@@ -569,8 +603,19 @@ long long VideoFileReader::Seek(long long frameIndex, Boolean seekKeyFrame)
 {
 	if(videoContext == nullptr || videoContext->VideoCodecContext == NULL) return -1;
 	libffmpeg::AVCodecContext* pCodecCtx = videoContext->VideoCodecContext;
+	libffmpeg::AVStream* vs = videoContext->VideoStream;
 	if(frameIndex < 0 || frameIndex >= this->FrameCount) return -1;
-	long long timeBase = (long long(pCodecCtx->time_base.num) * AV_TIME_BASE) / long long(pCodecCtx->time_base.den);
+
+	long long timeBase = 0;
+	if(vs->r_frame_rate.den > 0 && vs->r_frame_rate.num > 0)
+	{
+		timeBase = (long long(vs->r_frame_rate.den) * AV_TIME_BASE) / long long(vs->r_frame_rate.num);
+	}
+	else
+	{
+		timeBase = (long long(pCodecCtx->time_base.num) * AV_TIME_BASE) / long long(pCodecCtx->time_base.den);
+	}
+
 	long long seekTarget = long long(frameIndex) * timeBase;
 	int val = libffmpeg::av_seek_frame(cxt->FormatContext, -1, seekTarget, seekKeyFrame ? AVSEEK_FLAG_FRAME : AVSEEK_FLAG_ANY);
 	libffmpeg::	avcodec_flush_buffers(pCodecCtx);
