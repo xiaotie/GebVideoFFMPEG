@@ -151,6 +151,10 @@ public:
 	long long audioPts;
 	long long audioDts;
 
+	void RemovePackagesBefore(double time)
+	{
+	}
+
 	void ClearQueue()
 	{
 		IntPtr p = IntPtr::Zero;
@@ -605,11 +609,33 @@ double VideoFileReader::Seek(double time, Boolean seekKeyFrame)
 	libffmpeg::AVCodecContext* pCodecCtx = videoContext->VideoCodecContext;
 	libffmpeg::AVStream* vs = videoContext->VideoStream;
 	long long seekTarget = time * AV_TIME_BASE;
-	int val = libffmpeg::av_seek_frame(cxt->FormatContext, -1, seekTarget, seekKeyFrame ? AVSEEK_FLAG_FRAME : AVSEEK_FLAG_ANY);
+	int val = libffmpeg::av_seek_frame(cxt->FormatContext, -1, seekTarget, (AVSEEK_FLAG_BACKWARD | AVSEEK_FLAG_FRAME));
 	libffmpeg::	avcodec_flush_buffers(pCodecCtx);
 	cxt->ClearQueue();
 	cxt->EnsureNextVideoPacket();
-	return videoContext->CalcTime(cxt->videoPts);
+	if(seekKeyFrame == false)
+	{
+		if(this->CurrentVideoTime < time)
+		{
+			while(true)
+			{
+				Geb::Image::ImageRgb24^ img = this->ReadVideoFrame();
+				if(img == nullptr) break;
+				else delete img;
+				if(this->CurrentVideoTime >= time) break;
+			}
+			cxt->ClearQueue();
+			cxt->EnsureNextVideoPacket();
+		}
+	}
+
+	{
+		// Ë¢ÐÂ CurrentVideoTime
+		Geb::Image::ImageRgb24^ img = this->ReadVideoFrame();
+		if(img != nullptr) delete img;
+	}
+
+	return CurrentVideoTime;
 }
 
 // Decodes video frame into managed Bitmap
