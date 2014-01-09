@@ -615,6 +615,12 @@ double VideoFileReader::Seek(double time, Boolean seekKeyFrame)
 	cxt->EnsureNextVideoPacket();
 	if(seekKeyFrame == false)
 	{
+		{
+			// Ë¢ÐÂ CurrentVideoTime
+			Geb::Image::ImageRgb24^ img = this->ReadVideoFrame();
+			if(img != nullptr) delete img;
+		}
+
 		if(this->CurrentVideoTime < time)
 		{
 			while(true)
