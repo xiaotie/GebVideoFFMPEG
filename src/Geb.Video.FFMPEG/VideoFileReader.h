@@ -233,6 +233,8 @@ namespace Geb { namespace Video { namespace FFMPEG
         /// 
 		ImageRgb24^ ReadVideoFrame( );
 
+		ImageRgb24^ ReadVideoFrame( int width, int height );
+
 		array<Byte>^ ReadAudioFrame( bool onlyCurrentVideoFrame );
 
 		double Seek(double time,  Boolean seekKeyFrame);
@@ -260,7 +262,7 @@ namespace Geb { namespace Video { namespace FFMPEG
 		double m_audioTime;
 
 	private:
-		ImageRgb24^ DecodeVideoFrame( );
+		ImageRgb24^ DecodeVideoFrame(int width, int height );
 
 		array<Byte>^ DecodeAudioFrame( int length );
 

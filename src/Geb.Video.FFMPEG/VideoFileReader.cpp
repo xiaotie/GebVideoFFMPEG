@@ -36,11 +36,11 @@ public:
 	libffmpeg::AVStream*			VideoStream;
 	libffmpeg::AVCodecContext*		VideoCodecContext;
 	libffmpeg::AVFrame*				VideoFrame;
+	
 	struct libffmpeg::SwsContext*	ConvertContext;
 	int BytesRemaining;
 	long long pts;
 	long long dts;
-
 	
 	double CalcTime(long long pts)
 	{
@@ -138,11 +138,14 @@ public:
 public ref struct VideoFileContext
 {
 public:
-	libffmpeg::AVFormatContext* FormatContext;
+	static const int VideoQueueCapability = 256;
+	static const int AudioQueueCapability = 512;
 
+	libffmpeg::AVFormatContext* FormatContext;
 	Queue<IntPtr>^ VideoPackets; 
 	Queue<IntPtr>^ AudioPackets;
-
+	VideoContext^ VideoCxt;
+	AudioContext^ AudioCxt;
 	int videoStreamIndex;
 	int audioStreamIndex;
 	int minFrameCacheCount;
@@ -269,12 +272,34 @@ public:
 		{
 			if(packet->stream_index == videoStreamIndex)
 			{
+				if(VideoPackets->Count >= VideoQueueCapability)
+				{
+					IntPtr p = VideoPackets->Dequeue();
+					libffmpeg::AVPacket* pkt = (libffmpeg::AVPacket*)(void*)p;
+					if(pkt != NULL)
+					{
+						libffmpeg::av_free_packet( pkt );
+						delete pkt;
+					}
+				}
+
 				VideoPackets->Enqueue((IntPtr)packet);
 				videoPts = packet->pts;
 				videoDts = packet->dts;
 			}
 			else if(packet->stream_index == audioStreamIndex)
 			{
+				if(AudioPackets->Count >= AudioQueueCapability)
+				{
+					IntPtr p = AudioPackets->Dequeue();
+					libffmpeg::AVPacket* pkt = (libffmpeg::AVPacket*)(void*)p;
+					if(pkt != NULL)
+					{
+						libffmpeg::av_free_packet( pkt );
+						delete pkt;
+					}
+				}
+
 				AudioPackets->Enqueue((IntPtr)packet);
 				audioPts = packet->pts;
 				audioDts = packet->dts;
@@ -290,6 +315,97 @@ public:
 			delete packet;
 		}
 		return rtn >= 0;
+	}
+
+	void SeekPacket(double time)
+	{
+		// 扫描现有的音频packets，清除过早的packets
+		if(this->AudioPackets->Count > 0)
+		{
+			while(this->AudioPackets->Count > 0)
+			{
+				IntPtr p = this->AudioPackets->Peek();
+				libffmpeg::AVPacket* pkt = (libffmpeg::AVPacket*)(void*)p;
+				if( AudioCxt->CalcTime(pkt->dts) < time)
+				{
+					this->AudioPackets->Dequeue();
+					libffmpeg::av_free_packet( pkt );
+					delete pkt;
+				}
+				else
+				{
+					break;
+				}
+			}
+		}
+
+		// 扫描线有的视频 packets，清除过早的packets
+		if(this->VideoPackets->Count > 0)
+		{
+			while(this->VideoPackets->Count > 0)
+			{
+				IntPtr p = this->VideoPackets->Peek();
+				libffmpeg::AVPacket* pkt = (libffmpeg::AVPacket*)(void*)p;
+				if( VideoCxt->CalcTime(pkt->dts) < time)
+				{
+					this->VideoPackets->Dequeue();
+					libffmpeg::av_free_packet( pkt );
+					delete pkt;
+				}
+				else
+				{
+					return;
+				}
+			}
+		}
+
+		double packetTime = 0;
+		libffmpeg::AVPacket* packet = new libffmpeg::AVPacket( );
+		packet->data = NULL;
+		int rtn = libffmpeg::av_read_frame( FormatContext, packet );
+		if(packet ->data != NULL)
+		{
+			if(packet->stream_index == videoStreamIndex)
+			{
+				packetTime = VideoCxt->CalcTime(packet->dts);
+				if(packetTime < time)
+				{
+					libffmpeg::av_free_packet( packet );
+					delete packet;
+				}
+				else
+				{
+					VideoPackets->Enqueue((IntPtr)packet);
+					videoPts = packet->pts;
+					videoDts = packet->dts;
+					return;
+				}
+			}
+			else if(packet->stream_index == audioStreamIndex)
+			{
+				packetTime = AudioCxt->CalcTime(packet->dts);
+				if(packetTime < time)
+				{
+					libffmpeg::av_free_packet( packet );
+					delete packet;
+				}
+				else
+				{
+					AudioPackets->Enqueue((IntPtr)packet);
+					audioPts = packet->pts;
+					audioDts = packet->dts;
+				}
+			}
+			else
+			{
+				libffmpeg::av_free_packet( packet );
+				delete packet;
+			}
+		}
+		else
+		{
+			delete packet;
+		}
 	}
 
 	VideoFileContext()
@@ -338,7 +454,8 @@ void VideoFileReader::Open( String^ fileName )
 	m_videoTime = 0;
 	m_audioTime = 0;
 	cxt = gcnew VideoFileContext();
-
+	cxt->VideoCxt = videoContext;
+	cxt->AudioCxt = audioContext;
 	bool success = false;
 
 	// convert specified managed String to UTF8 unmanaged string
@@ -420,7 +537,7 @@ void VideoFileReader::Open( String^ fileName )
 		// prepare scaling context to convert RGB image to video format
 		videoContext->ConvertContext = libffmpeg::sws_getContext( videoContext->VideoCodecContext->width, videoContext->VideoCodecContext->height, videoContext->VideoCodecContext->pix_fmt,
 				videoContext->VideoCodecContext->width, videoContext->VideoCodecContext->height, libffmpeg::PIX_FMT_BGR24,
-				SWS_BICUBIC, NULL, NULL, NULL );
+				SWS_BILINEAR, NULL, NULL, NULL );
 
 		if ( videoContext->ConvertContext == NULL )
 		{
@@ -510,8 +627,13 @@ void VideoFileReader::Close(  )
 	}
 }
 
+ImageRgb24^ VideoFileReader::ReadVideoFrame()
+{
+	return ReadVideoFrame(this->Width,this->Height);
+}
+
 // Read next video frame of the current video file
-ImageRgb24^ VideoFileReader::ReadVideoFrame(  )
+ImageRgb24^ VideoFileReader::ReadVideoFrame(int width, int height  )
 {
     CheckIfDisposed( );
 
@@ -534,6 +656,8 @@ ImageRgb24^ VideoFileReader::ReadVideoFrame(  )
 		if(packet == NULL) break;
 		m_videoTime = videoContext->CalcTime(packet->dts);
 
+		if(m_videoTime < 0 && packet->size == 0) break;
+
 		// 解码 packet
 		videoContext->BytesRemaining = packet->size;
 		while (videoContext->BytesRemaining > 0 )
@@ -541,13 +665,17 @@ ImageRgb24^ VideoFileReader::ReadVideoFrame(  )
 			bytesDecoded = libffmpeg::avcodec_decode_video2( videoContext->VideoCodecContext, videoContext->VideoFrame, &frameFinished, packet );
 
 			if ( bytesDecoded < 0 )
-				throw gcnew Exception( "Error while decoding frame." );
+			{
+				cxt->ClearPacket(packet);
+				videoContext->BytesRemaining = 0;
+				return nullptr;
+			}
 
 			videoContext->BytesRemaining -= bytesDecoded;
 			if ( frameFinished )
 			{
 				cxt->ClearPacket(packet);
-				return DecodeVideoFrame( );
+				return DecodeVideoFrame( width, height);
 			}
 		}
 	}
@@ -588,7 +716,11 @@ array<Byte>^ VideoFileReader::ReadAudioFrame(  bool onlyCurrentVideoFrame  )
 			bytesDecoded = libffmpeg::avcodec_decode_audio3( audioContext->AudioCodecContext, audioContext->AudioFrame, &frameFinished, packet );
 
 			if ( bytesDecoded < 0 )
-				throw gcnew Exception( "Error while decoding frame." );
+			{
+				audioContext->BytesRemaining = 0;
+				cxt->ClearPacket(packet);
+				return nullptr;
+			}
 
 			audioContext->BytesRemaining -= bytesDecoded;
 			if ( frameFinished > 0 )
@@ -609,7 +741,9 @@ double VideoFileReader::Seek(double time, Boolean seekKeyFrame)
 	libffmpeg::AVCodecContext* pCodecCtx = videoContext->VideoCodecContext;
 	libffmpeg::AVStream* vs = videoContext->VideoStream;
 	long long seekTarget = time * AV_TIME_BASE;
-	int val = libffmpeg::av_seek_frame(cxt->FormatContext, -1, seekTarget, (AVSEEK_FLAG_BACKWARD | AVSEEK_FLAG_FRAME));
+	int flag = AVSEEK_FLAG_BACKWARD | AVSEEK_FLAG_FRAME;
+	if(time <= 0) flag = AVSEEK_FLAG_FRAME;
+	int val = libffmpeg::av_seek_frame(cxt->FormatContext, -1, seekTarget, flag);
 	libffmpeg::	avcodec_flush_buffers(pCodecCtx);
 	cxt->ClearQueue();
 	cxt->EnsureNextVideoPacket();
@@ -645,19 +779,21 @@ double VideoFileReader::Seek(double time, Boolean seekKeyFrame)
 }
 
 // Decodes video frame into managed Bitmap
-ImageRgb24^ VideoFileReader::DecodeVideoFrame( )
+ImageRgb24^ VideoFileReader::DecodeVideoFrame( int width, int height)
 {
-	ImageRgb24^ img = gcnew ImageRgb24( videoContext->VideoCodecContext->width, videoContext->VideoCodecContext->height);
+	ImageRgb24^ img = gcnew ImageRgb24(width, height);
 	
 	libffmpeg::uint8_t* ptr = reinterpret_cast<libffmpeg::uint8_t*>( static_cast<void*>( img->Start ) );
 
 	libffmpeg::uint8_t* srcData[4] = { ptr, NULL, NULL, NULL };
 	int srcLinesize[4] = { img->Width * sizeof(Rgb24), 0, 0, 0 };
 
-	// convert video frame to the RGB bitmap
-	libffmpeg::sws_scale( videoContext->ConvertContext, videoContext->VideoFrame->data, videoContext->VideoFrame->linesize, 0,
+	libffmpeg::SwsContext* pSwsCxt = libffmpeg::sws_getContext( videoContext->VideoCodecContext->width, videoContext->VideoCodecContext->height, videoContext->VideoCodecContext->pix_fmt,
+				width, height, libffmpeg::PIX_FMT_BGR24,
+				SWS_FAST_BILINEAR, NULL, NULL, NULL );
+	libffmpeg::sws_scale( pSwsCxt, videoContext->VideoFrame->data, videoContext->VideoFrame->linesize, 0,
 		videoContext->VideoCodecContext->height, srcData, srcLinesize );
-
+	libffmpeg::sws_freeContext(pSwsCxt);
 	return img;
 }
 
