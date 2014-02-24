@@ -48,7 +48,11 @@ public:
 
 		libffmpeg::AVStream* vs = VideoStream;
 		libffmpeg::AVCodecContext* pCodecCtx = VideoCodecContext;
-		if (vs->r_frame_rate.den > 0 && vs->r_frame_rate.num > 0)
+		if (vs->avg_frame_rate.den > 0 && vs->avg_frame_rate.num > 0)
+		{
+			return pts * vs->time_base.num / (double)(vs->time_base.den);
+		}
+		else if (vs->r_frame_rate.den > 0 && vs->r_frame_rate.num > 0)
 		{
 			return pts * vs->time_base.num / (double)(vs->time_base.den);
 		}
@@ -268,7 +272,7 @@ public:
 		libffmpeg::AVPacket* packet = new libffmpeg::AVPacket( );
 		packet->data = NULL;
 		int rtn = libffmpeg::av_read_frame( FormatContext, packet );
-		if(packet ->data != NULL)
+		if(packet ->data != NULL && packet->size > 0)
 		{
 			if(packet->stream_index == videoStreamIndex)
 			{
@@ -286,6 +290,7 @@ public:
 				VideoPackets->Enqueue((IntPtr)packet);
 				videoPts = packet->pts;
 				videoDts = packet->dts;
+				return true;
 			}
 			else if(packet->stream_index == audioStreamIndex)
 			{
@@ -303,18 +308,20 @@ public:
 				AudioPackets->Enqueue((IntPtr)packet);
 				audioPts = packet->pts;
 				audioDts = packet->dts;
+				return true;
 			}
 			else
 			{
 				libffmpeg::av_free_packet( packet );
 				delete packet;
+				return true;
 			}
 		}
 		else
 		{
 			delete packet;
+			return false;
 		}
-		return rtn >= 0;
 	}
 
 	void SeekPacket(double time)
@@ -552,7 +559,11 @@ void VideoFileReader::Open( String^ fileName )
 		m_codecName = gcnew String( videoContext->VideoCodecContext->codec->name );
 
 		// 这里 AForge.Net 的代码有问题，无法读取 flv,f4v 的 frameCount
-		if (vs->r_frame_rate.den > 0 && vs->r_frame_rate.num > 0)
+		if (vs->avg_frame_rate.den > 0 && vs->avg_frame_rate.num > 0)
+		{
+			m_frameRate = vs->avg_frame_rate.num / vs->avg_frame_rate.den;
+		}
+		else if (vs->r_frame_rate.den > 0 && vs->r_frame_rate.num > 0)
 		{
 			m_frameRate = vs->r_frame_rate.num / vs->r_frame_rate.den;
 		}
@@ -719,7 +730,7 @@ array<Byte>^ VideoFileReader::ReadAudioFrame(  bool onlyCurrentVideoFrame  )
 			{
 				audioContext->BytesRemaining = 0;
 				cxt->ClearPacket(packet);
-				return nullptr;
+				break;
 			}
 
 			audioContext->BytesRemaining -= bytesDecoded;
