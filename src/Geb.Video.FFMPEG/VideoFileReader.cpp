@@ -644,7 +644,25 @@ ImageRgb24^ VideoFileReader::ReadVideoFrame()
 }
 
 // Read next video frame of the current video file
-ImageRgb24^ VideoFileReader::ReadVideoFrame(int width, int height  )
+ImageRgb24^ VideoFileReader::ReadVideoFrame(int width, int height)
+{
+    if(FetchVideoFrame() == false) return nullptr;
+	else return DecodeVideoFrame(width,height);
+}
+
+ImageU8^ VideoFileReader::ReadVideoFrameU8()
+{
+	return ReadVideoFrameU8(this->Width,this->Height);
+}
+
+// Read next video frame of the current video file
+ImageU8^ VideoFileReader::ReadVideoFrameU8(int width, int height)
+{
+    if(FetchVideoFrame() == false) return nullptr;
+	else return DecodeVideoFrameU8(width,height);
+}
+
+bool VideoFileReader::FetchVideoFrame()
 {
     CheckIfDisposed( );
 
@@ -679,20 +697,20 @@ ImageRgb24^ VideoFileReader::ReadVideoFrame(int width, int height  )
 			{
 				cxt->ClearPacket(packet);
 				videoContext->BytesRemaining = 0;
-				return nullptr;
+				return false;
 			}
 
 			videoContext->BytesRemaining -= bytesDecoded;
 			if ( frameFinished )
 			{
 				cxt->ClearPacket(packet);
-				return DecodeVideoFrame( width, height);
+				return true;
 			}
 		}
 	}
 
 	cxt->ClearPacket(packet);
-	return nullptr;
+	return false;
 }
 
 // Read next video frame of the current video file
@@ -801,7 +819,26 @@ ImageRgb24^ VideoFileReader::DecodeVideoFrame( int width, int height)
 
 	libffmpeg::SwsContext* pSwsCxt = libffmpeg::sws_getContext( videoContext->VideoCodecContext->width, videoContext->VideoCodecContext->height, videoContext->VideoCodecContext->pix_fmt,
 				width, height, libffmpeg::PIX_FMT_BGR24,
-				SWS_FAST_BILINEAR, NULL, NULL, NULL );
+				SWS_BICUBIC, NULL, NULL, NULL );
+	libffmpeg::sws_scale( pSwsCxt, videoContext->VideoFrame->data, videoContext->VideoFrame->linesize, 0,
+		videoContext->VideoCodecContext->height, srcData, srcLinesize );
+	libffmpeg::sws_freeContext(pSwsCxt);
+	return img;
+}
+
+// Decodes video frame into managed Bitmap
+ImageU8^ VideoFileReader::DecodeVideoFrameU8( int width, int height)
+{
+	ImageU8^ img = gcnew ImageU8(width, height);
+	
+	libffmpeg::uint8_t* ptr = reinterpret_cast<libffmpeg::uint8_t*>( static_cast<void*>( img->Start ) );
+
+	libffmpeg::uint8_t* srcData[4] = { ptr, NULL, NULL, NULL };
+	int srcLinesize[4] = { img->Width, 0, 0, 0 };
+
+	libffmpeg::SwsContext* pSwsCxt = libffmpeg::sws_getContext( videoContext->VideoCodecContext->width, videoContext->VideoCodecContext->height, videoContext->VideoCodecContext->pix_fmt,
+				width, height, libffmpeg::PIX_FMT_GRAY8,
+				SWS_BICUBIC, NULL, NULL, NULL );
 	libffmpeg::sws_scale( pSwsCxt, videoContext->VideoFrame->data, videoContext->VideoFrame->linesize, 0,
 		videoContext->VideoCodecContext->height, srcData, srcLinesize );
 	libffmpeg::sws_freeContext(pSwsCxt);
