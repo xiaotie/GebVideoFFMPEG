@@ -43,6 +43,11 @@
 #   define AV_NE(be, le) (le)
 #endif
 
+#ifndef INT64_C 
+#define INT64_C(c) (c ## LL) 
+#define UINT64_C(c) (c ## ULL) 
+#endif
+
 //rounded division & shift
 #define RSHIFT(a,b) ((a) > 0 ? ((a) + ((1<<(b))>>1))>>(b) : ((a) + ((1<<(b))>>1)-1)>>(b))
 /* assume b>0 */

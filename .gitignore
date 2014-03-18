@@ -8,3 +8,5 @@ obj
 
 *.opensdf
 /ipch
+/*.ncb
+/src/Geb.Video.FFMPEG/*.ncb
