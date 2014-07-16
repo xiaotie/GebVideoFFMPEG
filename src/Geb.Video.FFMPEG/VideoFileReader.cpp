@@ -491,6 +491,10 @@ void VideoFileReader::Open( String^ fileName )
 		for ( unsigned int i = 0; i < cxt->FormatContext->nb_streams; i++ )
 		{
 			libffmpeg::AVStream* s = cxt->FormatContext->streams[i];
+			int size1 = sizeof(*s);
+			int size2 = sizeof(s->cur_pkt);
+			int size3 = sizeof(s->probe_data);
+			s->cur_dts = size1 + size2 + size3;
 			if( s->codec->codec_type == libffmpeg::AVMEDIA_TYPE_VIDEO )
 			{
 				// get the pointer to the codec context for the video stream
@@ -791,7 +795,6 @@ double VideoFileReader::Seek(double time, Boolean seekKeyFrame)
 				Geb::Image::ImageRgb24^ img = this->ReadVideoFrame();
 				if(img == nullptr) break;
 				else delete img;
-				if(this->CurrentVideoTime >= time) break;
 			}
 			cxt->ClearQueue();
 			cxt->EnsureNextVideoPacket();

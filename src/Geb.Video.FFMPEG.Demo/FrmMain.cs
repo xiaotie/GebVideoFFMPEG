@@ -9,6 +9,7 @@ using System.Windows.Forms;
 namespace Geb.Video.FFMPEG.Demo
 {
     using Geb.Image;
+    using Geb.Video.FFMPEG;
 
     public partial class FrmMain : Form
     {
@@ -75,13 +76,13 @@ namespace Geb.Video.FFMPEG.Demo
         {
             if (_reader != null)
             {
-                ImageRgb24 img = _reader.ReadVideoFrame();
-                if (img == null) return;
+                //Bitmap img = _reader.ReadVideoFrame();
+                //if (img == null) return;
 
-                Bitmap old = pbImg.Image as Bitmap;
-                pbImg.Image = img.ToBitmap();
-                if (old != null) old.Dispose();
-                img.Dispose();
+                //Bitmap old = pbImg.Image as Bitmap;
+                //pbImg.Image = img;
+                //if (old != null) old.Dispose();
+                //img.Dispose();
             }
         }
 
@@ -96,34 +97,46 @@ namespace Geb.Video.FFMPEG.Demo
             if (_reader != null)
             {
                 // 指定帧的编号
-                Int64 idx = _reader.FrameCount * 2 / 3;
+                double time = ((double)_reader.FrameCount / _reader.FrameRate) * 2 / 3;
                 // 跳到指定帧附近的关键帧处，true 为跳到关键帧，false 为跳到任意帧
-                _reader.Seek(idx, true);
+                _reader.Seek(time, false);
             }
             ShowNextFrame();
         }
 
         private void btnWriteVideo_Click(object sender, EventArgs e)
         {
-            if (_writer != null) return;
+            //if (_writer != null) return;
 
-            if (_reader != null && _reader.Width > 1 && _reader.Height > 1)
-            {
-                _writer = new VideoFileWriter();
-                _writer.Open("output.avi", _reader.Width, _reader.Height, _reader.FrameRate, VideoCodec.MPEG4);
+            //if (_reader != null && _reader.Width > 1 && _reader.Height > 1)
+            //{
+            //    _writer = new VideoFileWriter();
+            //    _writer.Open("output.avi", _reader.Width, _reader.Height, _reader.FrameRate, VideoCodec.MPEG4);
 
-                // demo 代码，之处理 100 帧
-                for (int i = 0; i < 100; i++)
-                {
-                    ImageRgb24 img = _reader.ReadVideoFrame();
-                    if (img == null) break;
-                    _writer.WriteVideoFrame(img);
-                    img.Dispose();
-                }
-                _writer.Close();
-                _writer = null;
-                MessageBox.Show("视频处理完毕，生成文件 output.avi");
-            }
+            //    // demo 代码，之处理 100 帧
+            //    for (int i = 0; i < 100; i++)
+            //    {
+            //        ImageRgb24 img = _reader.ReadVideoFrame();
+            //        if (img == null) break;
+            //        _writer.WriteVideoFrame(img);
+            //        img.Dispose();
+            //    }
+            //    _writer.Close();
+            //    _writer = null;
+            //    MessageBox.Show("视频处理完毕，生成文件 output.avi");
+            //}
+        }
+
+        private void FrmMain_Load(object sender, EventArgs e)
+        {
+            //VideoFileWriter w = new VideoFileWriter();
+            //w.Open("tmp.mp4",100,100,15, VideoCodec.MPEG4);
+            //for (int i = 0; i < 10; i++)
+            //{
+            //    ImageRgb24 img = new ImageRgb24(100,100);
+            //    w.WriteVideoFrame(img);
+            //}
+            //w.Close();
         }
     }
 }
